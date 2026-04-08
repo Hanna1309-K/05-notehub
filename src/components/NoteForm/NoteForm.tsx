@@ -1,59 +1,62 @@
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import css from "./NoteForm.module.css";
-import appCss from "../App/App.module.css";
 import type { NoteTag } from "../../types/note";
+
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createNote } from "../../services/noteService";
+
 interface NoteFormProps {
-    onSubmit: (values: {
-        title: string;
-        content: string;
-        tag: NoteTag; // ✅ ЗАМІНИЛИ
-    }) => void;
     onClose: () => void;
 }
 
 interface FormValues {
     title: string;
     content: string;
-    tag: NoteTag; // ⬅ тут строго NoteTag
+    tag: NoteTag;
 }
+
 const validationSchema = Yup.object({
     title: Yup.string().min(3).max(50).required(),
     content: Yup.string().max(500),
-    tag: Yup.string()
+    tag: Yup.mixed<NoteTag>()
         .oneOf(["Todo", "Work", "Personal", "Meeting", "Shopping"])
         .required(),
 });
 
-export default function NoteForm({ onSubmit, onClose }: NoteFormProps) {
+export default function NoteForm({ onClose }: NoteFormProps) {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: createNote,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["notes"] });
+            onClose();
+        },
+    });
+
     return (
         <Formik<FormValues>
-            initialValues={{
-                title: "",
-                content: "",
-                tag: "Todo", // ✅ автоматично NoteTag
-            }}
+            initialValues={{ title: "", content: "", tag: "Todo" }}
             validationSchema={validationSchema}
             onSubmit={(values) => {
-                onSubmit(values); // ✅ тепер типи збігаються
-                onClose();
+                mutation.mutate(values);
             }}
         >
             <Form className={css.form}>
                 <div className={css.formGroup}>
-                    <label htmlFor="title">Title</label>
+                    <label>Title</label>
                     <Field name="title" className={css.input} />
                     <ErrorMessage name="title" component="span" className={css.error} />
                 </div>
 
                 <div className={css.formGroup}>
-                    <label htmlFor="content">Content</label>
+                    <label>Content</label>
                     <Field as="textarea" name="content" className={css.textarea} />
-                    <ErrorMessage name="content" component="span" className={css.error} />
                 </div>
 
                 <div className={css.formGroup}>
-                    <label htmlFor="tag">Tag</label>
+                    <label>Tag</label>
                     <Field as="select" name="tag" className={css.select}>
                         <option value="Todo">Todo</option>
                         <option value="Work">Work</option>
@@ -64,12 +67,10 @@ export default function NoteForm({ onSubmit, onClose }: NoteFormProps) {
                 </div>
 
                 <div className={css.actions}>
-                    <button type="button" onClick={onClose} className={css.cancelButton}>
+                    <button type="button" onClick={onClose}>
                         Cancel
                     </button>
-                    <button type="submit" className={appCss.button}>
-                        Create note +
-                    </button>
+                    <button type="submit">Create note</button>
                 </div>
             </Form>
         </Formik>
